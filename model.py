@@ -82,6 +82,9 @@ class Word2Batch:
 
             # store correct response -- act as label for the model
             correct_response = self.encode_correct_response()
+            if CUDA:
+                correct_response = correct_response.cuda()
+
             correct_response_seen.append(correct_response)
 
             # update letter remained and lives left

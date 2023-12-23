@@ -32,7 +32,7 @@ words = words[:1000]
 num_words = len(words)
 
 # define model
-model = RNN_model(target_dim=26, hidden_units=16)
+model = RNN_model(target_dim=26, hidden_units=16).to(device)
 
 # define hyper parameter
 n_epoch = 2
