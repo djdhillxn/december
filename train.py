@@ -23,7 +23,7 @@ def evaluate_model(model, words, device):
 
     for word in tqdm(words, desc='Evaluating', unit='word'):
         batch = Word2Batch(model=model, word=word, device=device)
-        obscured_word, prev_guess, correct_response = batch.game_mimic(model)
+        obscured_word, prev_guess, correct_response = batch.game_mimic()
         predict = model(obscured_word, prev_guess)
         predict = predict.squeeze(1)
         loss = loss_func(predict, correct_response)
