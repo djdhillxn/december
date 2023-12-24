@@ -17,6 +17,38 @@ def show_game(original_word, guesses, obscured_words_seen):
         word_seen = ''.join([chr(i + 97) if i != 26 else ' ' for i in obscured_words_seen[i].argmax(axis=1)])
         print('Guessed {} after seeing "{}"'.format(guesses[i], word_seen))
 
+class HangmanGRUNet(nn.Module):
+    def __init__(self, hidden_dim, target_dim=26, gru_layers=1, device='cpu'):
+        super(HangmanGRUNet, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.gru = nn.GRU(27, hidden_dim, num_layers=gru_layers, batch_first=True).to(device)
+        self.fc = nn.Linear(hidden_dim + 26, target_dim).to(device)
+        self.device = device
+    
+    def forward(self, obscure_word, prev_guess, train=True):
+        if len(obscure_word.size()) < 3:
+            obscure_word = obscure_word.unsqueeze(0)
+        if len(prev_guess.size()) < 2:
+            prev_guess = prev_guess.unsqueeze(0)
+
+        no_of_timesteps = obscure_word.shape[0]
+        batch_size = obscure_word.shape[1]
+
+        outputs = []
+        for i in range(no_of_timesteps):
+            gru_out, _ = self.gru(obscure_word[i].unsqueeze(0))
+            final_gru_out = gru_out[:, -1, :]
+
+            # Ensure prev_guess is a 2D tensor for concatenation
+            curr_prev_guess = prev_guess[i]
+            curr_prev_guess = curr_prev_guess.unsqueeze(0) if curr_prev_guess.dim() == 1 else curr_prev_guess
+
+            combined = torch.cat((final_gru_out, curr_prev_guess), dim=1)
+            out = self.fc(combined)
+            outputs.append(out)
+        
+        return torch.stack(outputs)
+
 
 class Word2Batch:
     def __init__(self, model, word, lives=6, device='cpu'):
@@ -63,6 +95,8 @@ class Word2Batch:
         while self.lives_left > 0 and len(self.remain_letters) > 0:
             # store obscured word and previous guesses -- act as X for the label
             obscured_word = self.encode_obscure_word()
+            #print("Shape of obscured_word:", obscured_word.shape)  # Add this line to check the shape
+
             prev_guess = self.encode_prev_guess()
 
             obscured_words_seen.append(obscured_word)
@@ -86,98 +120,6 @@ class Word2Batch:
                 self.lives_left -= 1
 
         return torch.stack(obscured_words_seen), torch.stack(prev_guess_seen), torch.stack(correct_response_seen)
-
-
-class StatefulLSTM(nn.Module):
-    def __init__(self, in_size, out_size):
-        super(StatefulLSTM, self).__init__()
-
-        self.lstm = nn.LSTMCell(in_size, out_size)
-        self.out_size = out_size
-
-        self.h = None
-        self.c = None
-
-    def reset_state(self):
-        self.h = None
-        self.c = None
-
-    def forward(self, x):
-        batch_size = x.data.size()[0]
-        if self.h is None:
-            state_size = [batch_size, self.out_size]
-            self.c = Variable(torch.zeros(state_size, device=device))
-            self.h = Variable(torch.zeros(state_size, device=device))
-
-        self.h, self.c = self.lstm(x, (self.h, self.c))
-
-        return self.h
-
-
-class LockedDropout(nn.Module):
-    def __init__(self):
-        super(LockedDropout,self).__init__()
-        self.m = None
-
-    def reset_state(self):
-        self.m = None
-
-    def forward(self, x, dropout=0.5, train=True):
-        if train==False:
-            return x
-        if(self.m is None):
-            self.m = x.data.new(x.size()).bernoulli_(1 - dropout)
-        mask = Variable(self.m, requires_grad=False) / (1 - dropout)
-
-        return mask * x
-
-
-class RNN_model(nn.Module):
-    def __init__(self, hidden_units=16, target_dim=26):
-        super(RNN_model, self).__init__()
-
-        # self.embedding = nn.Embedding(vocab_size,no_of_hidden_units)#,padding_idx=0)
-
-        self.lstm1 = StatefulLSTM(27, hidden_units)
-        self.bn_lstm1 = nn.BatchNorm1d(hidden_units)
-        self.dropout1 = LockedDropout()
-        self.fc = nn.Linear(hidden_units + 26, target_dim)
-
-
-        # self.loss = nn.BCEWithLogitsLoss()
-
-    def reset_state(self):
-        self.lstm1.reset_state()
-        self.dropout1.reset_state()
-
-    def forward(self, obscure_word, prev_guess, train=True):
-        if len(obscure_word.size()) < 3:
-            obscure_word = obscure_word.unsqueeze(0)
-        if len(prev_guess.size()) < 2:
-            prev_guess = prev_guess.unsqueeze(0)
-
-        no_of_timesteps = obscure_word.shape[0]
-        batch_size = obscure_word.shape[1]
-        self.reset_state()
-
-        outputs = []
-        for i in range(no_of_timesteps):
-            h = self.lstm1(obscure_word[i, :, :])
-            h = self.bn_lstm1(h)
-            h = self.dropout1(h, dropout=0.1, train=train)
-
-            pool = nn.MaxPool1d(batch_size)
-            h = h.permute(1, 0)  # (batch_size,features,time_steps)
-            h = h.unsqueeze(0)
-            out = pool(h)
-            out = out.squeeze(2)
-            curr_prev_guess = prev_guess[i, :]
-            curr_prev_guess = curr_prev_guess.unsqueeze(0)
-            out = torch.cat((out, curr_prev_guess), 1)
-            out = self.fc(out)
-            outputs.append(out)
-        outputs = torch.stack(outputs)
-        return outputs
 
 def gen_n_gram(word, n):
     n_gram = []

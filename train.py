@@ -4,10 +4,8 @@ import logging
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from model import Word2Batch, RNN_model
+from model import Word2Batch, HangmanGRUNet
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#print(f"Using device: {device}")
 
 def show_game(original_word, guesses, obscured_words_seen):
     print('Hidden word was "{}"'.format(original_word))
@@ -16,62 +14,102 @@ def show_game(original_word, guesses, obscured_words_seen):
         print('Guessed {} after seeing "{}"'.format(guesses[i], word_seen))
 
 
-def get_all_words(file_location):
-    with open(file_location, "r") as text_file:
-        all_words = text_file.read().splitlines()
-    return all_words
+def evaluate_model(model, words, device):
+    model.eval()
+    success_count = 0
+    total_loss = 0
+    loss_func = nn.BCEWithLogitsLoss()
+
+    for word in tqdm(words, desc='Evaluating', unit='word'):
+        batch = Word2Batch(model=model, word=word, device=device)
+        obscured_word, prev_guess, correct_response = batch.game_mimic(model)
+        predict = model(obscured_word, prev_guess)
+        predict = predict.squeeze(1)
+        loss = loss_func(predict, correct_response)
+        total_loss += loss.item()
+
+        # Evaluate the success of the game
+        if batch.lives_left > 0 and len(batch.remain_letters) == 0:
+            success_count += 1
+
+    avg_loss = total_loss / len(words)
+    success_rate = success_count / len(words)
+    return avg_loss, success_rate
 
 
-# get data
-root_path = os.getcwd()
-file_name = "./data/words_250000_train.txt"
-file_path = os.path.join(root_path, file_name)
-words = get_all_words(file_path)
-words = words[:1000]
-num_words = len(words)
+def train_model(model, train_data, val_data, epochs, learning_rate, device):
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+    loss_func = nn.BCEWithLogitsLoss()
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 15, gamma=0.1)
+    num_words = len(train_data)
+    # start training
+    tot_sample = 0
+    for n in range(epochs):
+        i = 0
+        print(f"Starting Epoch {n+1}/{epochs}")
+        model.train()
+        epoch_loss = 0
+        with tqdm(total=num_words, desc=f"Epoch {n+1}") as pbar:
+            while tot_sample < (n + 1) * num_words:
+                if i >= num_words:
+                    break
 
-# define model
-model = RNN_model(target_dim=26, hidden_units=16).to(device)
+                word = train_data[i]
+                if len(word) == 1:
+                    i += 1
+                    continue
 
-# define hyper parameter
-n_epoch = 2
-lr = 0.001
-record_step = 100  # output result every 100 words
-optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
-loss_func = nn.BCEWithLogitsLoss()
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 15, gamma=0.1)
-
-# start training
-start_time = time.perf_counter()
-tot_sample = 0
-for n in range(n_epoch):
-    i = 0
-    print(f"Starting Epoch {n+1}/{n_epoch}")
-
-    with tqdm(total=num_words, desc=f"Epoch {n+1}") as pbar:
-        while tot_sample < (n + 1) * num_words:
-            if i >= len(words):
-                break
-
-            word = words[i]
-            if len(word) == 1:
+                new_batch = Word2Batch(word=word, model=model, device=device)
+                obscured_word, prev_guess, correct_response = new_batch.game_mimic(model)
+            
+                optimizer.zero_grad()
+                predict = model(obscured_word, prev_guess)
+                predict = predict.squeeze(1)
+                loss = loss_func(predict, correct_response)
+                loss.backward()
+                optimizer.step()
+                epoch_loss += loss.item()
                 i += 1
-                continue
+                tot_sample += 1
+                pbar.update(1)
 
-            new_batch = Word2Batch(word=word, model=model, device=device)
-            obscured_word, prev_guess, correct_response = new_batch.game_mimic(model)
+            scheduler.step()
+            avg_train_loss = epoch_loss / len(train_data)
+            # Validation
+            avg_val_loss, val_success_rate = evaluate_model(model, val_data, device)
+            print(f'Epoch {n + 1} - Training Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
 
-            
-            optimizer.zero_grad()
-            predict = model(obscured_word, prev_guess)
-            predict = predict.squeeze(1)
-            loss = loss_func(predict, correct_response)
-            loss.backward()
-            optimizer.step()
-            
 
-            i += 1
-            tot_sample += 1
-            pbar.update(1)
+def load_data(filepath):
+    with open(filepath, 'r') as file:
+        words = [line.strip() for line in file]
+    return words
 
-        scheduler.step()
+
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #print(f"Using device: {device}")
+
+    print("Loading training data...")
+    train_words = load_data('./data/words_250000_train.txt')
+    print(f"Loaded {len(train_words)} words for training.")
+
+    print("Loading testing data...")
+    test_words = load_data('./data/words_test.txt')
+    print(f"Loaded {len(test_words)} words for testing.")
+
+    print("Initializing model...")
+    model = HangmanGRUNet(hidden_dim=128, gru_layers=3, device=device)
+    print("Model initialized.")
+
+    print("Starting training...")
+    train_model(model, train_words[:1000], test_words[:1000], epochs=5, learning_rate=0.001, device=device)
+    print("Training completed.")
+
+    print("Saving model...")
+    torch.save(model.state_dict(), 'hangman_model_gru10k_ep5_l3.pth')
+    print("Model saved as 'hangman_model_gru10k_ep5_l3.pth'.")
+
+if __name__ == '__main__':
+    main()
+
