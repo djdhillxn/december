@@ -90,7 +90,7 @@ def load_data(filepath):
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #print(f"Using device: {device}")
+    print(f"Using device: {device}")
 
     print("Loading training data...")
     train_words = load_data('./data/words_250000_train.txt')
