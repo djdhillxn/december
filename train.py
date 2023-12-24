@@ -3,6 +3,7 @@ import time
 import logging
 import torch
 import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from model import Word2Batch, HangmanGRUNet
 
@@ -61,7 +62,7 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
                     continue
 
                 new_batch = Word2Batch(word=word, model=model, device=device)
-                obscured_word, prev_guess, correct_response = new_batch.game_mimic(model)
+                obscured_word, prev_guess, correct_response = new_batch.game_mimic()
             
                 optimizer.zero_grad()
                 predict = model(obscured_word, prev_guess)
@@ -101,17 +102,28 @@ def main():
     print(f"Loaded {len(test_words)} words for testing.")
 
     print("Initializing model...")
-    model = HangmanGRUNet(hidden_dim=128, gru_layers=3, device=device)
+    model = HangmanGRUNet(hidden_dim=128, gru_layers=1)
     print("Model initialized.")
 
+    """
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs!")
+        model = nn.DataParallel(model)
+    """
+    model.to(device)
+
+    print(model)
+
+    
     print("Starting training...")
-    train_model(model, train_words[:1000], test_words[:1000], epochs=5, learning_rate=0.001, device=device)
+    train_model(model, train_words[:10000], test_words[:10000], epochs=10, learning_rate=0.001, device=device)
     print("Training completed.")
 
     print("Saving model...")
     torch.save(model.state_dict(), 'hangman_model_gru10k_ep5_l3.pth')
     print("Model saved as 'hangman_model_gru10k_ep5_l3.pth'.")
-
+    
+    
 if __name__ == '__main__':
     main()
 

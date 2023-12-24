@@ -16,12 +16,11 @@ def show_game(original_word, guesses, obscured_words_seen):
         print('Guessed {} after seeing "{}"'.format(guesses[i], word_seen))
 
 class HangmanGRUNet(nn.Module):
-    def __init__(self, hidden_dim, target_dim=26, gru_layers=1, device='cpu'):
+    def __init__(self, hidden_dim, target_dim=26, gru_layers=1):
         super(HangmanGRUNet, self).__init__()
         self.hidden_dim = hidden_dim
-        self.gru = nn.GRU(27, hidden_dim, num_layers=gru_layers, batch_first=True).to(device)
-        self.fc = nn.Linear(hidden_dim + 26, target_dim).to(device)
-        self.device = device
+        self.gru = nn.GRU(27, hidden_dim, num_layers=gru_layers, batch_first=True) 
+        self.fc = nn.Linear(hidden_dim + 26, target_dim)
     
     def forward(self, obscure_word, prev_guess, train=True):
         if len(obscure_word.size()) < 3:
@@ -84,8 +83,7 @@ class Word2Batch:
         response /= response.sum()
         return torch.from_numpy(response).to(self.device)
 
-    def game_mimic(self, model):
-        #model = model.to(device)
+    def game_mimic(self):
         obscured_words_seen = []
         prev_guess_seen = []
         correct_response_seen = []
@@ -101,7 +99,8 @@ class Word2Batch:
             prev_guess_seen.append(prev_guess)
 
             self.model.eval()
-            guess = self.model(obscured_word, prev_guess)  # output of guess should be a 1 by 26 vector
+            with torch.no_grad():
+            	guess = self.model(obscured_word, prev_guess)  # output of guess should be a 1 by 26 vector
             guess = torch.argmax(guess, dim=2).item()
             self.guessed_letter.add(guess)
             self.guessed_letter_each.append(chr(guess + 97))
