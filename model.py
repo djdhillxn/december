@@ -7,8 +7,6 @@ from torch.autograd import Variable
 import torch.distributed as dist
 import collections
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
 
 def show_game(original_word, guesses, obscured_words_seen):
     print('Hidden word was "{}"'.format(original_word))
@@ -87,7 +85,7 @@ class Word2Batch:
         return torch.from_numpy(response).to(self.device)
 
     def game_mimic(self, model):
-        model = model.to(device)
+        #model = model.to(device)
         obscured_words_seen = []
         prev_guess_seen = []
         correct_response_seen = []
@@ -107,6 +105,7 @@ class Word2Batch:
             guess = torch.argmax(guess, dim=2).item()
             self.guessed_letter.add(guess)
             self.guessed_letter_each.append(chr(guess + 97))
+            self.model.train()
 
             # store correct response -- act as label for the model
             correct_response = self.encode_correct_response()

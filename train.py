@@ -31,7 +31,8 @@ def evaluate_model(model, words, device):
         # Evaluate the success of the game
         if batch.lives_left > 0 and len(batch.remain_letters) == 0:
             success_count += 1
-
+    
+    model.train()
     avg_loss = total_loss / len(words)
     success_rate = success_count / len(words)
     return avg_loss, success_rate
