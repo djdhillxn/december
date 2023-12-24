@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.distributed as dist
 import collections
-CUDA = torch.cuda.is_available()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -18,13 +17,10 @@ def show_game(original_word, guesses, obscured_words_seen):
         word_seen = ''.join([chr(i + 97) if i != 26 else ' ' for i in obscured_words_seen[i].argmax(axis=1)])
         print('Guessed {} after seeing "{}"'.format(guesses[i], word_seen))
 
-def list2tensor(arr):
-    arr = np.array(arr)
-    return torch.from_numpy(arr)
-
 
 class Word2Batch:
-    def __init__(self, model, word, lives=6):
+    def __init__(self, model, word, lives=6, device='cpu'):
+        self.device = device
         self.origin_word = word
         self.guessed_letter = set()  # each element should be a idx
         self.word_idx = [ord(i)-97 for i in word]
@@ -37,28 +33,29 @@ class Word2Batch:
         self.obscured_word_seen = []  # n * 27, where n is the number of guesses
         self.prev_guessed = []  # n*26, where n is the number of guesses and each element is the normalized word idx
         self.correct_response = []  # this is the label, meaning self.prev_guess should be one of self.correct_response
-
+    
     def encode_obscure_word(self):
         word = [i if i in self.guessed_letter else 26 for i in self.word_idx]
-        obscured_word = np.zeros((len(word), 27), dtype=np.float32, device=device)
+        obscured_word = np.zeros((len(word), 27), dtype=np.float32)
         for i, j in enumerate(word):
             obscured_word[i, j] = 1
-        return obscured_word
+        return torch.from_numpy(obscured_word).to(self.device)
 
     def encode_prev_guess(self):
-        guess = np.zeros(26, dtype=np.float32, device=device)
+        guess = np.zeros(26, dtype=np.float32)
         for i in self.guessed_letter:
             guess[i] = 1.0
-        return guess
+        return torch.from_numpy(guess).to(self.device)
 
     def encode_correct_response(self):
-        response = np.zeros(26, dtype=np.float32, device=device)
+        response = np.zeros(26, dtype=np.float32)
         for i in self.remain_letters:
             response[i] = 1.0
         response /= response.sum()
-        return response
+        return torch.from_numpy(response).to(self.device)
 
     def game_mimic(self, model):
+        model = model.to(device)
         obscured_words_seen = []
         prev_guess_seen = []
         correct_response_seen = []
@@ -70,10 +67,8 @@ class Word2Batch:
 
             obscured_words_seen.append(obscured_word)
             prev_guess_seen.append(prev_guess)
-            obscured_word = torch.from_numpy(obscured_word)
-            prev_guess = torch.from_numpy(prev_guess)
 
-            model.eval()
+            self.model.eval()
             guess = self.model(obscured_word, prev_guess)  # output of guess should be a 1 by 26 vector
             guess = torch.argmax(guess, dim=2).item()
             self.guessed_letter.add(guess)
@@ -89,11 +84,9 @@ class Word2Batch:
 
             if correct_response_seen[-1][guess] < 0.0000001:  # which means we made a wrong guess
                 self.lives_left -= 1
-        obscured_words_seen = list2tensor(obscured_words_seen)
-        prev_guess_seen = list2tensor(prev_guess_seen)
-        correct_response_seen = list2tensor(correct_response_seen)
-        # correct_response_seen = correct_response_seen.long()
-        return obscured_words_seen, prev_guess_seen, correct_response_seen
+
+        return torch.stack(obscured_words_seen), torch.stack(prev_guess_seen), torch.stack(correct_response_seen)
+
 
 class StatefulLSTM(nn.Module):
     def __init__(self, in_size, out_size):
@@ -113,11 +106,8 @@ class StatefulLSTM(nn.Module):
         batch_size = x.data.size()[0]
         if self.h is None:
             state_size = [batch_size, self.out_size]
-            self.c = Variable(torch.zeros(state_size))
-            self.h = Variable(torch.zeros(state_size))
-            if CUDA:
-                self.c = self.c.cuda()
-                self.h = self.h.cuda()
+            self.c = Variable(torch.zeros(state_size, device=device))
+            self.h = Variable(torch.zeros(state_size, device=device))
 
         self.h, self.c = self.lstm(x, (self.h, self.c))
 

@@ -5,10 +5,9 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from model import Word2Batch, RNN_model
-CUDA = torch.cuda.is_available()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
+#print(f"Using device: {device}")
 
 def show_game(original_word, guesses, obscured_words_seen):
     print('Hidden word was "{}"'.format(original_word))
@@ -59,11 +58,9 @@ for n in range(n_epoch):
                 i += 1
                 continue
 
-            new_batch = Word2Batch(word=word, model=model)
+            new_batch = Word2Batch(word=word, model=model, device=device)
             obscured_word, prev_guess, correct_response = new_batch.game_mimic(model)
 
-            if CUDA:
-                obscured_word = obscured_word.cuda()
             
             optimizer.zero_grad()
             predict = model(obscured_word, prev_guess)
