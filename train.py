@@ -74,10 +74,11 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
                 pbar.update(1)
 
             scheduler.step()
-            avg_train_loss = epoch_loss / len(train_data)
-            # Validation
+            # validation
+            model.eval() 
             avg_val_loss, val_success_rate = evaluate_model(model, val_data, device)
-            print(f'Epoch {n + 1} - Training Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
+            model.train()
+            print(f'Epoch {n + 1} - Training Loss: {epoch_loss / num_words:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
 
 
 def load_data(filepath):
