@@ -8,6 +8,8 @@ import torch.distributed as dist
 import collections
 CUDA = torch.cuda.is_available()
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 def show_game(original_word, guesses, obscured_words_seen):
     print('Hidden word was "{}"'.format(original_word))
@@ -38,19 +40,19 @@ class Word2Batch:
 
     def encode_obscure_word(self):
         word = [i if i in self.guessed_letter else 26 for i in self.word_idx]
-        obscured_word = np.zeros((len(word), 27), dtype=np.float32)
+        obscured_word = np.zeros((len(word), 27), dtype=np.float32, device=device)
         for i, j in enumerate(word):
             obscured_word[i, j] = 1
         return obscured_word
 
     def encode_prev_guess(self):
-        guess = np.zeros(26, dtype=np.float32)
+        guess = np.zeros(26, dtype=np.float32, device=device)
         for i in self.guessed_letter:
             guess[i] = 1.0
         return guess
 
     def encode_correct_response(self):
-        response = np.zeros(26, dtype=np.float32)
+        response = np.zeros(26, dtype=np.float32, device=device)
         for i in self.remain_letters:
             response[i] = 1.0
         response /= response.sum()
@@ -70,9 +72,6 @@ class Word2Batch:
             prev_guess_seen.append(prev_guess)
             obscured_word = torch.from_numpy(obscured_word)
             prev_guess = torch.from_numpy(prev_guess)
-            if CUDA:
-                obscured_word = obscured_word.cuda()
-                prev_guess = prev_guess.cuda()
 
             model.eval()
             guess = self.model(obscured_word, prev_guess)  # output of guess should be a 1 by 26 vector
@@ -82,9 +81,6 @@ class Word2Batch:
 
             # store correct response -- act as label for the model
             correct_response = self.encode_correct_response()
-            if CUDA:
-                correct_response = correct_response.cuda()
-
             correct_response_seen.append(correct_response)
 
             # update letter remained and lives left
