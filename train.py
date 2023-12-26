@@ -8,14 +8,7 @@ from tqdm import tqdm
 from model import Word2Batch, HangmanGRUNet
 
 
-def show_game(original_word, guesses, obscured_words_seen):
-    print('Hidden word was "{}"'.format(original_word))
-    for i in range(len(guesses)):
-        word_seen = ''.join([chr(i + 97) if i != 26 else ' ' for i in obscured_words_seen[i].argmax(axis=1)])
-        print('Guessed {} after seeing "{}"'.format(guesses[i], word_seen))
-
-
-def evaluate_model(model, words, device):
+def evaluate_model(model, words, device, verbose=False):
     model.eval()
     success_count = 0
     total_loss = 0
@@ -23,7 +16,7 @@ def evaluate_model(model, words, device):
 
     for word in tqdm(words, desc='Evaluating', unit='word'):
         batch = Word2Batch(model=model, word=word, device=device)
-        obscured_word, prev_guess, correct_response = batch.game_mimic()
+        obscured_word, prev_guess, correct_response = batch.game_mimic(verbose=verbose)
         predict = model(obscured_word, prev_guess)
         predict = predict.squeeze(1)
         loss = loss_func(predict, correct_response)
@@ -78,7 +71,8 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
             scheduler.step()
             # validation
             model.eval() 
-            avg_val_loss, val_success_rate = evaluate_model(model, val_data, device)
+            verbose_validation=True
+            avg_val_loss, val_success_rate = evaluate_model(model, val_data, device, verbose=verbose_validation)
             model.train()
             print(f'Epoch {n + 1} - Training Loss: {epoch_loss / num_words:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
 
@@ -102,7 +96,7 @@ def main():
     print(f"Loaded {len(test_words)} words for testing.")
 
     print("Initializing model...")
-    model = HangmanGRUNet(hidden_dim=128, gru_layers=1)
+    model = HangmanGRUNet(hidden_dim=1000, gru_layers=1)
     print("Model initialized.")
 
     """
@@ -116,12 +110,12 @@ def main():
 
     
     print("Starting training...")
-    train_model(model, train_words[:10000], test_words[:10000], epochs=10, learning_rate=0.001, device=device)
+    train_model(model, train_words[:100], test_words[:100], epochs=1, learning_rate=0.001, device=device)
     print("Training completed.")
 
     print("Saving model...")
-    torch.save(model.state_dict(), 'hangman_model_gru10k_ep5_l3.pth')
-    print("Model saved as 'hangman_model_gru10k_ep5_l3.pth'.")
+    torch.save(model.state_dict(), 'hangman_model_good_boyz.pth')
+    print("Model saved as 'hangman_model_good_boyz.pth'.")
     
     
 if __name__ == '__main__':

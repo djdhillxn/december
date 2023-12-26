@@ -8,13 +8,6 @@ import torch.distributed as dist
 import collections
 
 
-def show_game(original_word, guesses, obscured_words_seen):
-    print('Hidden word was "{}"'.format(original_word))
-
-    for i in range(len(guesses)):
-        word_seen = ''.join([chr(i + 97) if i != 26 else ' ' for i in obscured_words_seen[i].argmax(axis=1)])
-        print('Guessed {} after seeing "{}"'.format(guesses[i], word_seen))
-
 class HangmanGRUNet(nn.Module):
     def __init__(self, hidden_dim, target_dim=26, gru_layers=1):
         super(HangmanGRUNet, self).__init__()
@@ -83,84 +76,61 @@ class Word2Batch:
         response /= response.sum()
         return torch.from_numpy(response).to(self.device)
 
-    def game_mimic(self):
+    def game_mimic(self, verbose=False):
         obscured_words_seen = []
         prev_guess_seen = []
         correct_response_seen = []
 
+        # Print the actual word at the start of each game if verbose is True
+        if verbose:
+            print("-" * 30)
+            print(f"Actual word: {self.origin_word}")
+            print("-" * 30)
+
         while self.lives_left > 0 and len(self.remain_letters) > 0:
-            # store obscured word and previous guesses -- act as X for the label
             obscured_word = self.encode_obscure_word()
-            #print("Shape of obscured_word:", obscured_word.shape)  # Add this line to check the shape
-
             prev_guess = self.encode_prev_guess()
-
-            obscured_words_seen.append(obscured_word)
-            prev_guess_seen.append(prev_guess)
-
+  
             self.model.eval()
             with torch.no_grad():
-            	guess = self.model(obscured_word, prev_guess)  # output of guess should be a 1 by 26 vector
-            guess = torch.argmax(guess, dim=2).item()
+                guess_probabilities = self.model(obscured_word, prev_guess)
+                guess_probabilities[0, :, list(self.guessed_letter)] = -float('inf')  # Set probabilities of guessed letters to negative infinity
+                guess = torch.argmax(guess_probabilities, dim=2).item()            
             self.guessed_letter.add(guess)
             self.guessed_letter_each.append(chr(guess + 97))
             self.model.train()
 
-            # store correct response -- act as label for the model
+            obscured_words_seen.append(obscured_word)
+            prev_guess_seen.append(prev_guess) 
+
+            
+            current_state = self.decode_obscured_word(obscured_word)
+            guessed_letter = chr(guess + 97) if guess in self.remain_letters else '~'
+            if verbose:
+                game_status = "Game Won" if len(self.remain_letters) == 0 else ""
+                print(f"Remaining lives: {self.lives_left}, Guessed letter: '{guessed_letter}', Word state: {current_state}, {game_status}".rstrip(", "))
+            
+
             correct_response = self.encode_correct_response()
             correct_response_seen.append(correct_response)
 
-            # update letter remained and lives left
-            if guess in self.remain_letters:  # only remove guess when the guess is correct
+
+            if guess in self.remain_letters:
                 self.remain_letters.remove(guess)
 
-            if correct_response_seen[-1][guess] < 0.0000001:  # which means we made a wrong guess
+            if correct_response_seen[-1][guess] < 0.0000001:
                 self.lives_left -= 1
+
+            
+            if len(self.remain_letters) == 0 or self.lives_left == 0:
+                game_status = "Game Won" if self.lives_left > 0 else "Game Lost"
+                final_word_state = self.origin_word if self.lives_left > 0 else current_state
+                print(f"Remaining lives: {self.lives_left}, Guessed letter: '~', Word state: {final_word_state}, {game_status}")
+                print("-" * 30)
+                break
+
 
         return torch.stack(obscured_words_seen), torch.stack(prev_guess_seen), torch.stack(correct_response_seen)
 
-def gen_n_gram(word, n):
-    n_gram = []
-    for i in range(n, len(word)+1):
-        if word[i-n:i] not in n_gram:
-            n_gram.append(word[i-n:i])
-    return n_gram
-
-def init_n_gram(n):
-    n_gram = {}
-    full_dictionary = ["apple", "hhh", "genereate", "google", "abc", "googla"]
-    for word in full_dictionary:
-        single_word_gram = gen_n_gram(word, n)
-        print(word, single_word_gram)
-        if len(word) not in n_gram:
-            n_gram[len(word)] = single_word_gram
-        else:
-            n_gram[len(word)].extend(single_word_gram)
-    print(n_gram)
-    res = {}
-    for key in n_gram.keys():
-        res[key] = collections.Counter(n_gram[key])
-    return res
-
-if __name__ == "__main__":
-    word = "compluvia"
-    print(init_n_gram(2))
-    # print(gen_n_gram(word, 2))
-    # target_size = 26
-    # # model = HangManModel(target_dim=target_size)
-    # model = RNN_model(target_dim=target_size, hidden_units=16)
-    # new_batch = Word2Batch(model, word)
-    # a, b, c = new_batch.game_mimic()
-    # guess = new_batch.guessed_letter_each
-    # new_model = RNN_model()
-    # out = new_model(a, b)
-    # out = out.squeeze(1)
-    # loss_func = nn.BCEWithLogitsLoss()
-    # loss = loss_func(out, c)
-    # show_game(word, guess, a)
-
-
-
-
-
-
+    def decode_obscured_word(self, obscured_word):
+        return ''.join([chr(i + 97) if i != 26 else '_' for i in obscured_word.argmax(axis=1)])
