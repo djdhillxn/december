@@ -96,7 +96,7 @@ def main():
     print(f"Loaded {len(test_words)} words for testing.")
 
     print("Initializing model...")
-    model = HangmanGRUNet(hidden_dim=1000, gru_layers=1)
+    model = HangmanGRUNet(hidden_dim=1000, gru_layers=2)
     print("Model initialized.")
 
     """
@@ -110,7 +110,7 @@ def main():
 
     
     print("Starting training...")
-    train_model(model, train_words[:10], test_words[:10], epochs=1, learning_rate=0.001, device=device)
+    train_model(model, train_words[:10], test_words[:10], epochs=5, learning_rate=0.001, device=device)
     print("Training completed.")
 
     print("Saving model...")

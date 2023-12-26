@@ -12,8 +12,8 @@ class HangmanGRUNet(nn.Module):
     def __init__(self, hidden_dim, target_dim=26, gru_layers=1):
         super(HangmanGRUNet, self).__init__()
         self.hidden_dim = hidden_dim
-        self.gru = nn.GRU(27, hidden_dim, num_layers=gru_layers, batch_first=True) 
-        self.fc = nn.Linear(hidden_dim + 26, target_dim)
+        self.gru = nn.GRU(27, hidden_dim, dropout=0.3, num_layers=gru_layers, bidirectional=True, batch_first=True) 
+        self.fc = nn.Linear(hidden_dim * 2 + 26, target_dim)
     
     def forward(self, obscure_word, prev_guess, train=True):
         if len(obscure_word.size()) < 3:
@@ -27,7 +27,9 @@ class HangmanGRUNet(nn.Module):
         outputs = []
         for i in range(no_of_timesteps):
             gru_out, _ = self.gru(obscure_word[i].unsqueeze(0))
-            final_gru_out = gru_out[:, -1, :]
+            # Use the concatenated hidden states from both directions
+            final_gru_out = torch.cat((gru_out[:, -1, :self.hidden_dim], gru_out[:, 0, self.hidden_dim:]), dim=1)
+            #final_gru_out = gru_out[:, -1, :]
 
             # Ensure prev_guess is a 2D tensor for concatenation
             curr_prev_guess = prev_guess[i]
