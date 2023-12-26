@@ -71,7 +71,7 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
             scheduler.step()
             # validation
             model.eval() 
-            verbose_validation=True
+            verbose_validation=False ##see here to change verbose type
             avg_val_loss, val_success_rate = evaluate_model(model, val_data, device, verbose=verbose_validation)
             model.train()
             print(f'Epoch {n + 1} - Training Loss: {epoch_loss / num_words:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
@@ -110,7 +110,7 @@ def main():
 
     
     print("Starting training...")
-    train_model(model, train_words[:100], test_words[:100], epochs=1, learning_rate=0.001, device=device)
+    train_model(model, train_words[:10], test_words[:10], epochs=1, learning_rate=0.001, device=device)
     print("Training completed.")
 
     print("Saving model...")

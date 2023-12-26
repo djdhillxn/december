@@ -105,7 +105,7 @@ class Word2Batch:
 
             
             current_state = self.decode_obscured_word(obscured_word)
-            guessed_letter = chr(guess + 97) if guess in self.remain_letters else '~'
+            guessed_letter = chr(guess + 97) #if guess in self.remain_letters else '~'
             if verbose:
                 game_status = "Game Won" if len(self.remain_letters) == 0 else ""
                 print(f"Remaining lives: {self.lives_left}, Guessed letter: '{guessed_letter}', Word state: {current_state}, {game_status}".rstrip(", "))
@@ -122,7 +122,7 @@ class Word2Batch:
                 self.lives_left -= 1
 
             
-            if len(self.remain_letters) == 0 or self.lives_left == 0:
+            if verbose and (len(self.remain_letters) == 0 or self.lives_left == 0):
                 game_status = "Game Won" if self.lives_left > 0 else "Game Lost"
                 final_word_state = self.origin_word if self.lives_left > 0 else current_state
                 print(f"Remaining lives: {self.lives_left}, Guessed letter: '~', Word state: {final_word_state}, {game_status}")
