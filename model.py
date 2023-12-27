@@ -20,25 +20,17 @@ class HangmanGRUNet(nn.Module):
             obscure_word = obscure_word.unsqueeze(0)
         if len(prev_guess.size()) < 2:
             prev_guess = prev_guess.unsqueeze(0)
-
         no_of_timesteps = obscure_word.shape[0]
         batch_size = obscure_word.shape[1]
-
         outputs = []
         for i in range(no_of_timesteps):
             gru_out, _ = self.gru(obscure_word[i].unsqueeze(0))
-            # Use the concatenated hidden states from both directions
             final_gru_out = torch.cat((gru_out[:, -1, :self.hidden_dim], gru_out[:, 0, self.hidden_dim:]), dim=1)
-            #final_gru_out = gru_out[:, -1, :]
-
-            # Ensure prev_guess is a 2D tensor for concatenation
             curr_prev_guess = prev_guess[i]
             curr_prev_guess = curr_prev_guess.unsqueeze(0) if curr_prev_guess.dim() == 1 else curr_prev_guess
-
             combined = torch.cat((final_gru_out, curr_prev_guess), dim=1)
             out = self.fc(combined)
             outputs.append(out)
-        
         return torch.stack(outputs)
 
 
