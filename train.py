@@ -54,15 +54,20 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
         # Shuffle the training data at the beginning of each epoch
         random.shuffle(train_data)
 
-        with tqdm(total=num_words, desc=f"Epoch {n+1}") as pbar:
+        with tqdm(total=num_words, desc=f"Epoch {n+1}/{epochs}", unit='word') as pbar:
+            """
             while tot_sample < (n + 1) * num_words:
                 if i >= num_words:
                     break
-
-                word = train_data[i]
+            """
+            for i, word in enumerate(train_data):
                 if len(word) == 1:
-                    i += 1
                     continue
+
+                #word = train_data[i]
+                #if len(word) == 1:
+                #    i += 1
+                #    continue
 
                 new_batch = Word2Batch(word=word, model=model, device=device)
                 obscured_word, prev_guess, correct_response = new_batch.game_mimic()
@@ -74,15 +79,14 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
-                i += 1
-                tot_sample += 1
+                #i += 1
+                #tot_sample += 1
                 pbar.update(1)
 
             scheduler.step()
             # validation
             model.eval() 
-            verbose_validation=False ##see here to change verbose type
-            avg_val_loss, val_success_rate = evaluate_model(model, val_data, device, verbose=verbose_validation)
+            avg_val_loss, val_success_rate = evaluate_model(model, val_data, device, verbose=False)
             model.train()
             print(f'Epoch {n + 1} - Training Loss: {epoch_loss / num_words:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
             
@@ -124,7 +128,7 @@ def main():
     print(model)
 
     print("Starting training...")
-    train_model(model, train_words[:100], test_words[:100], epochs=5, learning_rate=0.001, device=device)
+    train_model(model, train_words[:1000], test_words[:1000], epochs=5, learning_rate=0.001, device=device)
     print("Training completed.")
 
     
