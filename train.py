@@ -70,9 +70,10 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
             avg_val_loss, val_success_rate = evaluate_model(model, val_data, device, verbose=False)
             model.train()
             print(f'Epoch {n + 1} - Training Loss: {epoch_loss / num_words:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
-            # Save model after each epoch with training data length and validation accuracy in the filename, in the models/ directory
+
+            model_to_save = model.module if hasattr(model, "module") else model
             epoch_model_filename = f'{model_save_dir}hangman_model_trainlen{len(train_data)}_valacc{val_success_rate:.2f}_epoch{n + 1}.pth'
-            torch.save(model.state_dict(), epoch_model_filename)
+            torch.save(model_to_save.state_dict(), epoch_model_filename)
             print(f"Model saved as '{epoch_model_filename}'.")
 
 
@@ -98,11 +99,11 @@ def main():
     model = HangmanGRUNet(hidden_dim=512, gru_layers=2)
     print("Model initialized.")
 
-    """
+   
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs!")
         model = nn.DataParallel(model)
-    """
+    
 
     model.to(device)
     print(model)
