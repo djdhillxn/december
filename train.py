@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from model import Word2Batch, HangmanGRUNet
-
+import random
 
 def evaluate_model(model, words, device, verbose=False):
     model.eval()
@@ -50,6 +50,10 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
         print(f"Starting Epoch {n+1}/{epochs}")
         model.train()
         epoch_loss = 0
+
+        # Shuffle the training data at the beginning of each epoch
+        random.shuffle(train_data)
+
         with tqdm(total=num_words, desc=f"Epoch {n+1}") as pbar:
             while tot_sample < (n + 1) * num_words:
                 if i >= num_words:
