@@ -37,6 +37,12 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
     loss_func = nn.BCEWithLogitsLoss()
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 15, gamma=0.1)
     num_words = len(train_data)
+    
+    # Ensure 'models/' directory exists
+    model_save_dir = 'models/'
+    if not os.path.exists(model_save_dir):
+        os.makedirs(model_save_dir)
+
     # start training
     tot_sample = 0
     for n in range(epochs):
@@ -75,6 +81,11 @@ def train_model(model, train_data, val_data, epochs, learning_rate, device):
             avg_val_loss, val_success_rate = evaluate_model(model, val_data, device, verbose=verbose_validation)
             model.train()
             print(f'Epoch {n + 1} - Training Loss: {epoch_loss / num_words:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Success Rate: {val_success_rate:.2f}')
+            
+            # Save model after each epoch with training data length and validation accuracy in the filename, in the models/ directory
+            epoch_model_filename = f'{model_save_dir}hangman_model_trainlen{len(train_data)}_valacc{val_success_rate:.2f}_epoch{n + 1}.pth'
+            torch.save(model.state_dict(), epoch_model_filename)
+            print(f"Model saved as '{epoch_model_filename}'.")
 
 
 def load_data(filepath):
@@ -104,20 +115,14 @@ def main():
         print(f"Using {torch.cuda.device_count()} GPUs!")
         model = nn.DataParallel(model)
     """
-    model.to(device)
 
+    model.to(device)
     print(model)
 
-    
     print("Starting training...")
-    train_model(model, train_words[:], test_words[:], epochs=5, learning_rate=0.001, device=device)
+    train_model(model, train_words[:100], test_words[:100], epochs=5, learning_rate=0.001, device=device)
     print("Training completed.")
 
-    print("Saving model...")
-    torch.save(model.state_dict(), 'hangman_model_good_boyz.pth')
-    print("Model saved as 'hangman_model_good_boyz.pth'.")
-    
     
 if __name__ == '__main__':
     main()
-
