@@ -12,7 +12,7 @@ class HangmanGRUNet(nn.Module):
     def __init__(self, hidden_dim, target_dim=26, gru_layers=1):
         super(HangmanGRUNet, self).__init__()
         self.hidden_dim = hidden_dim
-        self.gru = nn.GRU(27, hidden_dim, dropout=0.3, num_layers=gru_layers, bidirectional=True, batch_first=True) 
+        self.gru = nn.GRU(27, hidden_dim, dropout=0.19, num_layers=gru_layers, bidirectional=True, batch_first=True) 
         self.fc = nn.Linear(hidden_dim * 2 + 26, target_dim)
     
     def forward(self, obscure_word, prev_guess, train=True):

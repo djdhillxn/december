@@ -35,7 +35,8 @@ class HangmanAPI(object):
         self.full_dictionary_common_letter_sorted = collections.Counter("".join(self.full_dictionary)).most_common()
         self.current_dictionary = []
 
-        self.model_path = 'models/hangman_model_trainlen100_valacc0.33_epoch4.pth'
+        #self.model_path = 'models/hangman_model_trainlen100_valacc0.33_epoch4.pth'
+        self.model_path = './models/hangman_model_epoch9_trainlen120_valacc0.26667_bestvalacc0.36667.pth'
         self.model = self.load_model(model_path=self.model_path, hidden_dim=512, gru_layers=2)        
 
 
@@ -60,7 +61,7 @@ class HangmanAPI(object):
     
     def load_model(self, model_path, hidden_dim, gru_layers):
         model = HangmanGRUNet(hidden_dim=hidden_dim, gru_layers=gru_layers)
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(model_path)['model_state_dict'])
         model.eval()
         return model
 
